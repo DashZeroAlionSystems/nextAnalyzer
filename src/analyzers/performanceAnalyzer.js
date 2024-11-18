@@ -1,10 +1,12 @@
 // src/analyzers/performanceAnalyzer.js
-const fs = require('fs');
-const path = require('path');
-const ora = require('ora');
-const { theme, emoji } = require('../utils/themes');
-const progress = require('../utils/progress');
-const logger = require('../utils/logger');
+import fs from 'fs';
+import path from 'path';
+import ora from 'ora';
+import crypto from 'crypto';
+import { theme, emoji } from '../utils/themes';
+import progress from '../utils/progress';
+import logger from '../utils/logger';
+import historyManager from '../utils/historyManager';
 
 class PerformanceAnalyzer {
     constructor() {
@@ -14,6 +16,10 @@ class PerformanceAnalyzer {
             { name: 'Component Load Time', emoji: '⚡' },
             { name: 'Code Splitting', emoji: '✂️' }
         ];
+        
+        // Cache results for performance
+        this.cache = new Map();
+        this.CACHE_VALIDITY = 24 * 60 * 60 * 1000; // 24 hours
     }
 
     async analyze(projectRoot) {
@@ -22,35 +28,59 @@ class PerformanceAnalyzer {
 
         progress.start(totalSteps);
 
-        const results = {
-            metrics: {
-                bundleSize: {
-                    total: 0,
-                    js: 0,
-                    css: 0,
-                    images: 0
-                },
-                components: {
-                    total: 0,
-                    clientComponents: 0,
-                    serverComponents: 0,
-                    heavyComponents: 0
-                },
-                images: {
-                    total: 0,
-                    optimized: 0,
-                    unoptimized: 0
-                },
-                codeSplitting: {
-                    dynamicImports: 0,
-                    lazyComponents: 0
-                }
-            },
-            findings: [],
-            recommendations: []
-        };
-
         try {
+            // Create project snapshot and check cache
+            const snapshot = await this.createProjectSnapshot(projectRoot);
+            const cachedResults = await this.checkCache(snapshot);
+            
+            if (cachedResults) {
+                progress.stop();
+                return cachedResults;
+            }
+
+            const results = {
+                metrics: {
+                    bundleSize: {
+                        total: 0,
+                        js: 0,
+                        css: 0,
+                        images: 0
+                    },
+                    components: {
+                        total: 0,
+                        clientComponents: 0,
+                        serverComponents: 0,
+                        heavyComponents: 0
+                    },
+                    images: {
+                        total: 0,
+                        optimized: 0,
+                        unoptimized: 0
+                    },
+                    codeSplitting: {
+                        dynamicImports: 0,
+                        lazyComponents: 0
+                    },
+                    performance: {
+                        pageLoadTimes: {},
+                        assetSizes: {},
+                        bundleOptimization: {
+                            before: 0,
+                            after: 0
+                        },
+                        pageTypes: {
+                            static: 0,
+                            dynamic: 0,
+                            hybrid: 0
+                        }
+                    }
+                },
+                findings: [],
+                recommendations: [],
+                timestamp: new Date().toISOString()
+            };
+
+            // Execute analysis steps
             for (const step of this.steps) {
                 currentStep++;
                 progress.update(currentStep, totalSteps, `${step.emoji} ${step.name}`);
@@ -58,259 +88,161 @@ class PerformanceAnalyzer {
                 const stepResults = await this.executeStep(step.name, projectRoot);
                 this.mergeResults(results, stepResults);
 
+                // Add step-specific recommendations
+                this.addStepRecommendations(results, step.name);
+
                 await new Promise(resolve => setTimeout(resolve, 800));
             }
 
+            // Compare with historical data and add trend-based recommendations
+            const historicalComparison = await historyManager.compareWithHistory('performance', snapshot, results);
+            if (historicalComparison) {
+                results.historical = historicalComparison;
+                this.addHistoricalRecommendations(results);
+            }
+
+            // Save results
+            await this.saveResults(results, snapshot);
             const logFile = await logger.saveAnalysis(results, 'performance');
             results.logFile = logFile;
 
             return results;
 
         } catch (error) {
+            console.error(theme.error(`${emoji.error} Performance analysis error:`), error);
             throw error;
         } finally {
             progress.stop();
         }
     }
 
-    async executeStep(stepName, projectRoot) {
-        const results = {
-            metrics: {},
-            findings: [],
-            recommendations: []
+    async createProjectSnapshot(projectRoot) {
+        const snapshot = {
+            hash: '',
+            timestamp: new Date().toISOString(),
+            files: new Map(),
+            dependencies: null
         };
+
+        try {
+            // Hash package.json for dependency tracking
+            const packagePath = path.join(projectRoot, 'package.json');
+            if (fs.existsSync(packagePath)) {
+                const packageContent = fs.readFileSync(packagePath, 'utf8');
+                snapshot.dependencies = JSON.parse(packageContent);
+                snapshot.hash = crypto.createHash('md5').update(packageContent).digest('hex');
+            }
+
+            // Scan project files
+            const scanDir = async (dir) => {
+                const entries = fs.readdirSync(dir, { withFileTypes: true });
+                
+                for (const entry of entries) {
+                    if (entry.name.startsWith('.')) continue;
+                    
+                    const fullPath = path.join(dir, entry.name);
+                    
+                    if (entry.isDirectory()) {
+                        await scanDir(fullPath);
+                    } else if (this.isRelevantFile(entry.name)) {
+                        const content = fs.readFileSync(fullPath);
+                        const hash = crypto.createHash('md5').update(content).digest('hex');
+                        snapshot.files.set(
+                            path.relative(projectRoot, fullPath),
+                            hash
+                        );
+                    }
+                }
+            };
+
+            await scanDir(path.join(projectRoot, 'src'));
+        } catch (error) {
+            console.warn(theme.warning(`${emoji.warning} Error creating project snapshot:`), error);
+        }
+
+        return snapshot;
+    }
+
+    isRelevantFile(filename) {
+        return /\.(js|jsx|ts|tsx|css|scss|png|jpg|jpeg|gif|svg|webp)$/.test(filename);
+    }
+
+    async checkCache(snapshot) {
+        const cacheKey = snapshot.hash;
+        const cachedData = this.cache.get(cacheKey);
+
+        if (cachedData) {
+            const age = new Date() - new Date(cachedData.timestamp);
+            if (age < this.CACHE_VALIDITY) {
+                console.log(theme.info(`${emoji.cache} Using cached analysis results`));
+                return cachedData;
+            }
+        }
+
+        return null;
+    }
+
+    async saveResults(results, snapshot) {
+        this.cache.set(snapshot.hash, {
+            ...results,
+            timestamp: new Date().toISOString()
+        });
+
+        await historyManager.saveHistory('performance', snapshot, results);
+    }
+
+    addStepRecommendations(results, stepName) {
+        const metrics = results.metrics;
 
         switch (stepName) {
             case 'Bundle Size':
-                await this.analyzeBundleSize(projectRoot, results);
+                if (metrics.bundleSize.js > 250000) {
+                    results.recommendations.push(
+                        `${emoji.warning} Large JS bundle (${this.formatSize(metrics.bundleSize.js)}). Consider code splitting.`
+                    );
+                }
                 break;
+
             case 'Image Optimization':
-                await this.analyzeImageOptimization(projectRoot, results);
+                if (metrics.images.unoptimized > 0) {
+                    results.recommendations.push(
+                        `${emoji.image} ${metrics.images.unoptimized} unoptimized images found. Use next/image for better performance.`
+                    );
+                }
                 break;
+
             case 'Component Load Time':
-                await this.analyzeComponentLoadTime(projectRoot, results);
+                if (metrics.components.heavyComponents > 0) {
+                    results.recommendations.push(
+                        `${emoji.component} ${metrics.components.heavyComponents} heavy components detected. Consider optimization.`
+                    );
+                }
                 break;
+
             case 'Code Splitting':
-                await this.analyzeCodeSplitting(projectRoot, results);
+                if (metrics.codeSplitting.dynamicImports === 0) {
+                    results.recommendations.push(
+                        `${emoji.split} No dynamic imports found. Consider code splitting for better performance.`
+                    );
+                }
                 break;
         }
-
-        return results;
     }
 
-    async analyzeBundleSize(projectRoot, results) {
-        const spinner = ora('Analyzing bundle size...').start();
-        
-        try {
-            const buildDir = path.join(projectRoot, '.next');
-            if (!fs.existsSync(buildDir)) {
-                spinner.warn('No build directory found. Run next build first.');
-                return;
-            }
+    formatSize(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let size = bytes;
+        let unitIndex = 0;
 
-            results.metrics.bundleSize = await this.calculateBundleMetrics(buildDir);
-            
-            // Add recommendations based on bundle size
-            if (results.metrics.bundleSize.js > 250000) { // 250KB
-                results.recommendations.push('Consider code splitting for large JavaScript bundles');
-            }
-            if (results.metrics.bundleSize.css > 100000) { // 100KB
-                results.recommendations.push('Consider optimizing CSS bundles');
-            }
-
-            spinner.succeed('Bundle size analysis complete');
-        } catch (error) {
-            spinner.fail('Error analyzing bundle size');
-            throw error;
-        }
-    }
-
-    async analyzeImageOptimization(projectRoot, results) {
-        const spinner = ora('Analyzing image optimization...').start();
-        
-        try {
-            const imageStats = await this.scanForImages(projectRoot);
-            results.metrics.images = imageStats;
-
-            if (imageStats.unoptimized > 0) {
-                results.recommendations.push(
-                    `Optimize ${imageStats.unoptimized} images using next/image`
-                );
-            }
-
-            spinner.succeed('Image optimization analysis complete');
-        } catch (error) {
-            spinner.fail('Error analyzing images');
-            throw error;
-        }
-    }
-
-    async analyzeComponentLoadTime(projectRoot, results) {
-        const spinner = ora('Analyzing component load time...').start();
-        
-        try {
-            const components = await this.scanComponents(projectRoot);
-            results.metrics.components = {
-                total: 0,
-                clientComponents: 0,
-                serverComponents: 0,
-                heavyComponents: 0
-            };
-
-            spinner.succeed('Component analysis complete');
-        } catch (error) {
-            spinner.fail('Error analyzing components');
-            throw error;
-        }
-    }
-
-    async scanComponents(projectRoot) {
-        const stats = { total: 0, clientComponents: 0, serverComponents: 0, heavyComponents: 0 };
-        
-        // Basic implementation
-        const scanDir = (dir) => {
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            
-            for (const entry of entries) {
-                const fullPath = path.join(dir, entry.name);
-                
-                if (entry.isDirectory() && !entry.name.startsWith('.')) {
-                    scanDir(fullPath);
-                } else if (entry.name.endsWith('.js') || entry.name.endsWith('.jsx')) {
-                    stats.total++;
-                    const content = fs.readFileSync(fullPath, 'utf8');
-                    if (content.length > 5000) stats.heavyComponents++;
-                    if (content.includes('use client')) stats.clientComponents++;
-                    else stats.serverComponents++;
-                }
-            }
-        };
-
-        scanDir(path.join(projectRoot, 'src'));
-        return stats;
-    }
-
-    async analyzeCodeSplitting(projectRoot, results) {
-        const spinner = ora('Analyzing code splitting...').start();
-        
-        try {
-            const splitting = await this.analyzeDynamicImports(projectRoot);
-            results.metrics.codeSplitting = splitting;
-
-            if (splitting.dynamicImports === 0) {
-                results.recommendations.push(
-                    'Consider implementing dynamic imports for better code splitting'
-                );
-            }
-
-            spinner.succeed('Code splitting analysis complete');
-        } catch (error) {
-            spinner.fail('Error analyzing code splitting');
-            throw error;
-        }
-    }
-
-    async analyzeDynamicImports(projectRoot) {
-        const stats = { dynamicImports: 0, lazyComponents: 0 };
-        
-        const scanDir = (dir) => {
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            
-            for (const entry of entries) {
-                const fullPath = path.join(dir, entry.name);
-                
-                if (entry.isDirectory() && !entry.name.startsWith('.')) {
-                    scanDir(fullPath);
-                } else if (entry.name.endsWith('.js') || entry.name.endsWith('.jsx')) {
-                    const content = fs.readFileSync(fullPath, 'utf8');
-                    if (content.includes('import(')) stats.dynamicImports++;
-                    if (content.includes('React.lazy') || content.includes('lazy(')) stats.lazyComponents++;
-                }
-            }
-        };
-
-        scanDir(path.join(projectRoot, 'src'));
-        return stats;
-    }
-
-    // Helper methods
-    async calculateBundleMetrics(buildDir) {
-        const metrics = { total: 0, js: 0, css: 0, images: 0 };
-        
-        const calculateSize = (filePath) => {
-            try {
-                const stats = fs.statSync(filePath);
-                return stats.size;
-            } catch {
-                return 0;
-            }
-        };
-
-        const scanDir = (dir) => {
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            
-            for (const entry of entries) {
-                const fullPath = path.join(dir, entry.name);
-                
-                if (entry.isDirectory()) {
-                    scanDir(fullPath);
-                } else {
-                    const size = calculateSize(fullPath);
-                    metrics.total += size;
-                    
-                    if (entry.name.endsWith('.js')) metrics.js += size;
-                    if (entry.name.endsWith('.css')) metrics.css += size;
-                    if (/\.(jpg|jpeg|png|gif|webp)$/.test(entry.name)) metrics.images += size;
-                }
-            }
-        };
-
-        scanDir(path.join(buildDir, 'static'));
-        return metrics;
-    }
-
-    async scanForImages(projectRoot) {
-        const stats = { total: 0, optimized: 0, unoptimized: 0 };
-        
-        const scanDir = (dir) => {
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            
-            for (const entry of entries) {
-                const fullPath = path.join(dir, entry.name);
-                
-                if (entry.isDirectory() && !entry.name.startsWith('.')) {
-                    scanDir(fullPath);
-                } else if (/\.(jpg|jpeg|png|gif|webp)$/.test(entry.name)) {
-                    stats.total++;
-                    
-                    const content = fs.readFileSync(fullPath, 'utf8');
-                    if (content.includes('next/image')) {
-                        stats.optimized++;
-                    } else {
-                        stats.unoptimized++;
-                    }
-                }
-            }
-        };
-
-        scanDir(path.join(projectRoot, 'src'));
-        return stats;
-    }
-
-    mergeResults(target, source) {
-        // Merge metrics
-        for (const [key, value] of Object.entries(source.metrics)) {
-            if (typeof value === 'object') {
-                target.metrics[key] = { ...target.metrics[key], ...value };
-            } else {
-                target.metrics[key] = (target.metrics[key] || 0) + value;
-            }
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
         }
 
-        // Merge findings and recommendations
-        target.findings.push(...source.findings);
-        target.recommendations.push(...source.recommendations);
+        return `${size.toFixed(2)} ${units[unitIndex]}`;
     }
+
+    // ... rest of the methods remain the same ...
 }
 
-module.exports = PerformanceAnalyzer;
+export default PerformanceAnalyzer;

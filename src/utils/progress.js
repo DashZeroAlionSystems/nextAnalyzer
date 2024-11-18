@@ -1,7 +1,7 @@
 // src/utils/progress.js
-const cliProgress = require('cli-progress');
-const chalk = require('chalk');
-const { theme } = require('./themes');
+import cliProgress from 'cli-progress';
+import chalk from 'chalk';
+import { theme } from './themes';
 
 class ProgressManager {
     constructor() {
@@ -123,4 +123,4 @@ class ProgressManager {
     }
 }
 
-module.exports = new ProgressManager();
+export default new ProgressManager();

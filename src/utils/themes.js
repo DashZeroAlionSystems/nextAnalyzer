@@ -1,51 +1,29 @@
-const chalk = require('chalk');
-const gradient = require('gradient-string');
+// src/utils/themes.js
+import chalk from 'chalk';
 
-exports.theme = {
-    title: chalk.bold.magenta,
-    section: chalk.cyan.bold,
-    success: chalk.green,
-    warning: chalk.yellow,
-    error: chalk.red,
-    info: chalk.blue,
-    highlight: chalk.bold.white,
-    dim: chalk.gray,
-    special: chalk.hex('#FF8C00'),
-    metric: {
-        good: chalk.green,
-        medium: chalk.yellow,
-        bad: chalk.red
-    }
+export const theme = {
+    info: (text) => chalk.blue(text),
+    success: (text) => chalk.green(text),
+    warning: (text) => chalk.yellow(text),
+    error: (text) => chalk.red(text),
+    highlight: (text) => chalk.cyan(text),
+    muted: (text) => chalk.gray(text)
 };
 
-exports.emoji = {
-    route: '🛣️ ',
-    static: '📄',
-    server: '🔄',
-    api: '⚡',
-    dynamic: '🔀',
-    warning: '⚠️ ',
+export const emoji = {
     success: '✅',
     error: '❌',
-    middleware: '🔗',
-    layout: '📐',
-    page: '📝',
+    warning: '⚠️',
+    info: 'ℹ️',
     folder: '📁',
-    performance: '🚀',
-    security: '🔒',
-    database: '🗄️ ',
-    cache: '💾',
-    optimization: '⚡',
-    i18n: '🌐',
-    component: '🧩',
-    hook: '🎣',
-    auth: '🔑',
-    test: '🧪',
-    style: '💅',
-    build: '🏗️ ',
-    time: '⏱️ ',
-    size: '📊',
+    file: '📄',
     search: '🔍',
-    deploy: '🚀',
-    analyzing: '🔮'
+    rocket: '🚀',
+    chart: '📊',
+    bug: '🐛',
+    link: '🔗',
+    check: '✔️',
+    cross: '✖️',
+    loading: '⏳',
+    done: '🏁'
 };

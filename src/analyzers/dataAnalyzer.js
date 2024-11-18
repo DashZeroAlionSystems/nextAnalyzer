@@ -1,10 +1,10 @@
-// src/analyzers/dataAnalyzer.js
-const fs = require('fs');
-const path = require('path');
-const ora = require('ora');
-const { theme, emoji } = require('../utils/themes');
-const progress = require('../utils/progress');
-const logger = require('../utils/logger');
+import fs from 'fs';
+import path from 'path';
+import ora from 'ora';
+import { theme, emoji } from '../utils/themes';
+import progress from '../utils/progress';
+import logger from '../utils/logger';
+import historyManager from '../utils/historyManager';
 
 class DataAnalyzer {
     constructor() {
@@ -14,6 +14,7 @@ class DataAnalyzer {
             { name: 'Caching Patterns', emoji: '📦' },
             { name: 'Data Mutations', emoji: '✏️' }
         ];
+        this.analysisCache = new Map();
     }
 
     async analyze(projectRoot) {
@@ -22,13 +23,29 @@ class DataAnalyzer {
 
         progress.start(totalSteps);
 
+        // Create a snapshot of data patterns for comparison
+        const dataSnapshot = await this.createDataSnapshot(projectRoot);
+        
+        // Check history for recent analysis
+        const cachedResults = await historyManager.getHistory('data', dataSnapshot);
+        if (cachedResults) {
+            const cacheAge = new Date() - new Date(cachedResults.timestamp);
+            const CACHE_VALIDITY = 6 * 60 * 60 * 1000; // 6 hours - shorter for data analysis
+            
+            if (cacheAge < CACHE_VALIDITY) {
+                progress.stop();
+                return cachedResults.results;
+            }
+        }
+
         const results = {
             metrics: {
                 dataFetching: {
                     fetchCalls: 0,
                     useQuery: 0,
                     useSWR: 0,
-                    serverActions: 0
+                    serverActions: 0,
+                    uniqueEndpoints: new Set()
                 },
                 stateManagement: {
                     useState: 0,
@@ -40,7 +57,8 @@ class DataAnalyzer {
                 caching: {
                     revalidation: 0,
                     staticProps: 0,
-                    serverProps: 0
+                    serverProps: 0,
+                    cacheHits: new Set()
                 },
                 mutations: {
                     formSubmissions: 0,
@@ -63,6 +81,22 @@ class DataAnalyzer {
                 await new Promise(resolve => setTimeout(resolve, 800));
             }
 
+            // Convert Sets to arrays for serialization
+            results.metrics.dataFetching.uniqueEndpoints = Array.from(results.metrics.dataFetching.uniqueEndpoints);
+            results.metrics.caching.cacheHits = Array.from(results.metrics.caching.cacheHits);
+
+            // Compare with historical data
+            if (cachedResults) {
+                const comparison = await historyManager.compareWithHistory('data', dataSnapshot, results);
+                if (comparison) {
+                    results.historical = comparison;
+                    this.addHistoricalRecommendations(results);
+                }
+            }
+
+            // Save new results to history
+            await historyManager.saveHistory('data', dataSnapshot, results);
+
             const logFile = await logger.saveAnalysis(results, 'data');
             results.logFile = logFile;
 
@@ -73,6 +107,98 @@ class DataAnalyzer {
         } finally {
             progress.stop();
         }
+    }
+
+    async createDataSnapshot(projectRoot) {
+        const snapshot = {
+            dataPatterns: {},
+            endpoints: new Set(),
+            cacheKeys: new Set()
+        };
+
+        const scanDir = async (dir) => {
+            if (!fs.existsSync(dir)) return;
+            
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                
+                if (entry.isDirectory() && !entry.name.startsWith('_')) {
+                    await scanDir(fullPath);
+                } else if (entry.name.match(/\.(ts|js|tsx|jsx)$/)) {
+                    const content = fs.readFileSync(fullPath, 'utf8');
+                    
+                    // Extract data patterns
+                    const patterns = this.extractDataPatterns(content);
+                    const relativePath = path.relative(projectRoot, fullPath);
+                    snapshot.dataPatterns[relativePath] = patterns;
+
+                    // Collect unique endpoints
+                    const endpoints = this.extractEndpoints(content);
+                    endpoints.forEach(endpoint => snapshot.endpoints.add(endpoint));
+
+                    // Collect cache keys
+                    const cacheKeys = this.extractCacheKeys(content);
+                    cacheKeys.forEach(key => snapshot.cacheKeys.add(key));
+                }
+            }
+        };
+
+        await scanDir(path.join(projectRoot, 'src'));
+        
+        // Convert Sets to Arrays for serialization
+        snapshot.endpoints = Array.from(snapshot.endpoints);
+        snapshot.cacheKeys = Array.from(snapshot.cacheKeys);
+        
+        return snapshot;
+    }
+
+    extractDataPatterns(content) {
+        return {
+            fetchPatterns: (content.match(/fetch\(['"]([^'"]+)['"]/g) || []).map(m => m.match(/['"]([^'"]+)['"]/)[1]),
+            queryKeys: (content.match(/useQuery\(['"]([^'"]+)['"]/g) || []).map(m => m.match(/['"]([^'"]+)['"]/)[1]),
+            swrKeys: (content.match(/useSWR\(['"]([^'"]+)['"]/g) || []).map(m => m.match(/['"]([^'"]+)['"]/)[1])
+        };
+    }
+
+    extractEndpoints(content) {
+        const endpoints = new Set();
+        const patterns = [
+            /fetch\(['"]([^'"]+)['"]/g,
+            /url:\s*['"]([^'"]+)['"]/g,
+            /axios\.get\(['"]([^'"]+)['"]/g,
+            /axios\.post\(['"]([^'"]+)['"]/g
+        ];
+
+        patterns.forEach(pattern => {
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+                if (match[1].startsWith('/api/') || match[1].startsWith('http')) {
+                    endpoints.add(match[1]);
+                }
+            }
+        });
+
+        return Array.from(endpoints);
+    }
+
+    extractCacheKeys(content) {
+        const cacheKeys = new Set();
+        const patterns = [
+            /queryKey:\s*\['([^']+)'/g,
+            /useSWR\(['"]([^'"]+)['"]/g,
+            /revalidate:\s*(\d+)/g
+        ];
+
+        patterns.forEach(pattern => {
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+                cacheKeys.add(match[1]);
+            }
+        });
+
+        return Array.from(cacheKeys);
     }
 
     async executeStep(stepName, projectRoot) {
@@ -107,33 +233,54 @@ class DataAnalyzer {
 
         try {
             const scanDirectory = async (dir) => {
+                const cacheKey = `data_fetching_${dir}`;
+                if (this.analysisCache.has(cacheKey)) {
+                    const cachedResults = this.analysisCache.get(cacheKey);
+                    this.mergeResults(results, cachedResults);
+                    return;
+                }
+
                 const entries = fs.readdirSync(dir, { withFileTypes: true });
+                const stepResults = {
+                    metrics: { dataFetching: { uniqueEndpoints: new Set() } },
+                    findings: [],
+                    recommendations: []
+                };
 
                 for (const entry of entries) {
                     const fullPath = path.join(dir, entry.name);
 
                     if (entry.isDirectory() && !entry.name.startsWith('_')) {
                         await scanDirectory(fullPath);
-                    } else if (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts') || 
-                              entry.name.endsWith('.jsx') || entry.name.endsWith('.js')) {
+                    } else if (entry.name.match(/\.(ts|js|tsx|jsx)$/)) {
                         const content = fs.readFileSync(fullPath, 'utf8');
                         
                         // Analyze data fetching patterns
                         const patterns = this.detectDataFetchingPatterns(content);
-                        Object.assign(results.metrics, patterns);
+                        Object.assign(stepResults.metrics, { dataFetching: patterns });
+
+                        // Extract and store unique endpoints
+                        const endpoints = this.extractEndpoints(content);
+                        endpoints.forEach(endpoint => 
+                            stepResults.metrics.dataFetching.uniqueEndpoints.add(endpoint)
+                        );
 
                         // Record findings
                         if (patterns.fetchCalls > 0 || patterns.useQuery > 0 || patterns.useSWR > 0) {
-                            results.findings.push({
+                            stepResults.findings.push({
                                 file: fullPath,
-                                patterns: patterns
+                                patterns: patterns,
+                                endpoints: endpoints
                             });
                         }
 
                         // Add recommendations
-                        this.addDataFetchingRecommendations(patterns, results.recommendations);
+                        this.addDataFetchingRecommendations(patterns, endpoints, stepResults.recommendations);
                     }
                 }
+
+                this.analysisCache.set(cacheKey, stepResults);
+                this.mergeResults(results, stepResults);
             };
 
             if (fs.existsSync(appDir)) {
@@ -152,32 +299,44 @@ class DataAnalyzer {
 
         try {
             const scanDirectory = async (dir) => {
+                const cacheKey = `state_management_${dir}`;
+                if (this.analysisCache.has(cacheKey)) {
+                    const cachedResults = this.analysisCache.get(cacheKey);
+                    this.mergeResults(results, cachedResults);
+                    return;
+                }
+
                 const entries = fs.readdirSync(dir, { withFileTypes: true });
+                const stepResults = {
+                    metrics: {},
+                    findings: [],
+                    recommendations: []
+                };
 
                 for (const entry of entries) {
                     const fullPath = path.join(dir, entry.name);
 
                     if (entry.isDirectory() && !entry.name.startsWith('_')) {
                         await scanDirectory(fullPath);
-                    } else if (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts') || 
-                              entry.name.endsWith('.jsx') || entry.name.endsWith('.js')) {
+                    } else if (entry.name.match(/\.(ts|js|tsx|jsx)$/)) {
                         const content = fs.readFileSync(fullPath, 'utf8');
                         
-                        // Analyze state management patterns
                         const statePatterns = this.detectStatePatterns(content);
-                        Object.assign(results.metrics, { stateManagement: statePatterns });
+                        Object.assign(stepResults.metrics, { stateManagement: statePatterns });
 
-                        // Record findings and recommendations
                         if (this.hasComplexState(statePatterns)) {
-                            results.findings.push({
+                            stepResults.findings.push({
                                 file: fullPath,
                                 statePatterns: statePatterns
                             });
 
-                            this.addStateManagementRecommendations(statePatterns, results.recommendations);
+                            this.addStateManagementRecommendations(statePatterns, stepResults.recommendations);
                         }
                     }
                 }
+
+                this.analysisCache.set(cacheKey, stepResults);
+                this.mergeResults(results, stepResults);
             };
 
             if (fs.existsSync(appDir)) {
@@ -196,31 +355,51 @@ class DataAnalyzer {
 
         try {
             const scanDirectory = async (dir) => {
+                const cacheKey = `caching_${dir}`;
+                if (this.analysisCache.has(cacheKey)) {
+                    const cachedResults = this.analysisCache.get(cacheKey);
+                    this.mergeResults(results, cachedResults);
+                    return;
+                }
+
                 const entries = fs.readdirSync(dir, { withFileTypes: true });
+                const stepResults = {
+                    metrics: { caching: { cacheHits: new Set() } },
+                    findings: [],
+                    recommendations: []
+                };
 
                 for (const entry of entries) {
                     const fullPath = path.join(dir, entry.name);
 
                     if (entry.isDirectory() && !entry.name.startsWith('_')) {
                         await scanDirectory(fullPath);
-                    } else if (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts') || 
-                              entry.name.endsWith('.jsx') || entry.name.endsWith('.js')) {
+                    } else if (entry.name.match(/\.(ts|js|tsx|jsx)$/)) {
                         const content = fs.readFileSync(fullPath, 'utf8');
                         
-                        // Analyze caching patterns
                         const cachingPatterns = this.detectCachingPatterns(content);
-                        Object.assign(results.metrics, { caching: cachingPatterns });
+                        Object.assign(stepResults.metrics, { caching: cachingPatterns });
+
+                        // Extract and store cache keys
+                        const cacheKeys = this.extractCacheKeys(content);
+                        cacheKeys.forEach(key => 
+                            stepResults.metrics.caching.cacheHits.add(key)
+                        );
 
                         if (this.hasCachingIssues(cachingPatterns)) {
-                            results.findings.push({
+                            stepResults.findings.push({
                                 file: fullPath,
-                                cachingPatterns: cachingPatterns
+                                cachingPatterns: cachingPatterns,
+                                cacheKeys: cacheKeys
                             });
 
-                            this.addCachingRecommendations(cachingPatterns, results.recommendations);
+                            this.addCachingRecommendations(cachingPatterns, cacheKeys, stepResults.recommendations);
                         }
                     }
                 }
+
+                this.analysisCache.set(cacheKey, stepResults);
+                this.mergeResults(results, stepResults);
             };
 
             if (fs.existsSync(appDir)) {
@@ -239,32 +418,45 @@ class DataAnalyzer {
 
         try {
             const scanDirectory = async (dir) => {
+                const cacheKey = `mutations_${dir}`;
+                if (this.analysisCache.has(cacheKey)) {
+                    const cachedResults = this.analysisCache.get(cacheKey);
+                    this.mergeResults(results, cachedResults);
+                    return;
+                }
+
                 const entries = fs.readdirSync(dir, { withFileTypes: true });
+                const stepResults = {
+                    metrics: {},
+                    findings: [],
+                    recommendations: []
+                };
 
                 for (const entry of entries) {
                     const fullPath = path.join(dir, entry.name);
 
                     if (entry.isDirectory() && !entry.name.startsWith('_')) {
                         await scanDirectory(fullPath);
-                    } else if (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts') || 
-                              entry.name.endsWith('.jsx') || entry.name.endsWith('.js')) {
+                    } else if (entry.name.match(/\.(ts|js|tsx|jsx)$/)) {
                         const content = fs.readFileSync(fullPath, 'utf8');
                         
-                        // Analyze mutation patterns
                         const mutationPatterns = this.detectMutationPatterns(content);
-                        Object.assign(results.metrics, { mutations: mutationPatterns });
+                        Object.assign(stepResults.metrics, { mutations: mutationPatterns });
 
                         if (mutationPatterns.formSubmissions > 0 || 
                             mutationPatterns.serverMutations > 0) {
-                            results.findings.push({
+                            stepResults.findings.push({
                                 file: fullPath,
                                 mutationPatterns: mutationPatterns
                             });
 
-                            this.addMutationRecommendations(mutationPatterns, results.recommendations);
+                            this.addMutationRecommendations(mutationPatterns, stepResults.recommendations);
                         }
                     }
                 }
+
+                this.analysisCache.set(cacheKey, stepResults);
+                this.mergeResults(results, stepResults);
             };
 
             if (fs.existsSync(appDir)) {
@@ -278,7 +470,6 @@ class DataAnalyzer {
         }
     }
 
-    // Helper methods
     detectDataFetchingPatterns(content) {
         return {
             fetchCalls: (content.match(/fetch\(/g) || []).length,
@@ -322,12 +513,15 @@ class DataAnalyzer {
         return !patterns.revalidation && (patterns.staticProps || patterns.serverProps);
     }
 
-    addDataFetchingRecommendations(patterns, recommendations) {
+    addDataFetchingRecommendations(patterns, endpoints, recommendations) {
         if (patterns.fetchCalls > 5) {
             recommendations.push('Consider using React Query or SWR for better data fetching management');
         }
         if (patterns.fetchCalls > 0 && !patterns.useQuery && !patterns.useSWR) {
             recommendations.push('Implement data caching strategy using React Query or SWR');
+        }
+        if (endpoints.length > 3) {
+            recommendations.push('Consider implementing API route aggregation to reduce number of requests');
         }
     }
 
@@ -340,12 +534,15 @@ class DataAnalyzer {
         }
     }
 
-    addCachingRecommendations(patterns, recommendations) {
+    addCachingRecommendations(patterns, cacheKeys, recommendations) {
         if (!patterns.revalidation && patterns.staticProps) {
             recommendations.push('Implement revalidation strategy for static props');
         }
         if (patterns.serverProps) {
             recommendations.push('Consider using static props with revalidation instead of server-side props for better performance');
+        }
+        if (cacheKeys.length > 5) {
+            recommendations.push('Consider implementing cache key normalization to reduce cache fragmentation');
         }
     }
 
@@ -358,11 +555,64 @@ class DataAnalyzer {
         }
     }
 
+    addHistoricalRecommendations(results) {
+        const { changes } = results.historical;
+        
+        if (changes.metrics.dataFetching) {
+            const fetchingChanges = changes.metrics.dataFetching;
+            if (fetchingChanges.fetchCalls && fetchingChanges.fetchCalls.difference > 0) {
+                results.recommendations.push(
+                    `Data fetching calls increased by ${fetchingChanges.fetchCalls.difference}. Consider implementing request batching.`
+                );
+            }
+        }
+
+        if (changes.metrics.caching) {
+            const cachingChanges = changes.metrics.caching;
+            if (cachingChanges.revalidation && cachingChanges.revalidation.difference < 0) {
+                results.recommendations.push(
+                    'Cache revalidation usage has decreased. Review caching strategy.'
+                );
+            }
+        }
+
+        if (changes.metrics.mutations) {
+            const mutationChanges = changes.metrics.mutations;
+            if (mutationChanges.optimisticUpdates && mutationChanges.optimisticUpdates.difference < 0) {
+                results.recommendations.push(
+                    'Optimistic updates usage has decreased. Consider implementing for better UX.'
+                );
+            }
+        }
+    }
+
     mergeResults(target, source) {
         // Merge metrics
         for (const [key, value] of Object.entries(source.metrics)) {
             if (typeof value === 'object') {
-                target.metrics[key] = { ...target.metrics[key], ...value };
+                if (!target.metrics[key]) target.metrics[key] = {};
+                
+                if (value instanceof Set) {
+                    if (!(target.metrics[key] instanceof Set)) {
+                        target.metrics[key] = new Set();
+                    }
+                    for (const item of value) {
+                        target.metrics[key].add(item);
+                    }
+                } else {
+                    for (const [subKey, subValue] of Object.entries(value)) {
+                        if (subValue instanceof Set) {
+                            if (!target.metrics[key][subKey]) {
+                                target.metrics[key][subKey] = new Set();
+                            }
+                            for (const item of subValue) {
+                                target.metrics[key][subKey].add(item);
+                            }
+                        } else {
+                            target.metrics[key][subKey] = (target.metrics[key][subKey] || 0) + subValue;
+                        }
+                    }
+                }
             } else {
                 target.metrics[key] = (target.metrics[key] || 0) + value;
             }
@@ -374,4 +624,4 @@ class DataAnalyzer {
     }
 }
 
-module.exports = DataAnalyzer;
+export default DataAnalyzer;

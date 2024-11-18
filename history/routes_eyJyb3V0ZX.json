@@ -1,0 +1,374 @@
+{
+  "timestamp": "2024-11-18T11:31:38.584Z",
+  "type": "routes",
+  "data": {
+    "routes": {
+      "src\\app\\api\\assistant\\route.ts": "31a300d377b82c5b2231b81b3d4f40ee",
+      "src\\app\\api\\auth\\[...nextauth]\\route.ts": "b992e13b63f1f4597f8cdfabe3e9397b",
+      "src\\app\\api\\pinecone-namespaces\\route.ts": "84106b4181c7531741687ad785be55e8",
+      "src\\app\\layout.tsx": "1d74161236d8661ae07e1f95d3d560df",
+      "src\\app\\page.tsx": "5d91cd0a21b6d32e3ec9c05fa34b0ed4",
+      "src\\app\\[locale]\\auth\\signin\\page.tsx": "74984c1680ca2b105bd0f0e20dea63c3",
+      "src\\app\\[locale]\\management\\ai-engine\\page.tsx": "8a6d3b35dde8d4a9ce6bfcf6679123d2",
+      "src\\app\\[locale]\\management\\ai-engine\\[sourceId]\\source-documents\\page.tsx": "e635b4a6672b03c8ab22be174c862fcd",
+      "src\\app\\[locale]\\management\\assistant\\page.tsx": "cd524fc30155deb6591a58a20e3a0530",
+      "src\\app\\[locale]\\management\\chatbots\\channels\\page.tsx": "3bc1755cca9568c46688275dbaac8710",
+      "src\\app\\[locale]\\management\\chatbots\\channels\\[channelId]\\page.tsx": "48d39c43819aff5230fd990f30d8f950",
+      "src\\app\\[locale]\\management\\chatbots\\page.tsx": "dee8570d139ef5dae57bf3b0ba034c58",
+      "src\\app\\[locale]\\management\\digital-asset-manager\\inventory\\page.tsx": "3ade7c2a57e2bb2b8759d594d4065dd2",
+      "src\\app\\[locale]\\management\\digital-asset-manager\\page.tsx": "c4f2be917ca744e9d4acb403f8766d36",
+      "src\\app\\[locale]\\management\\digital-asset-manager\\projects\\page.tsx": "f672967fc967e01a9748f5ba617b9e78",
+      "src\\app\\[locale]\\management\\digital-asset-manager\\projects\\[projectId]\\page.tsx": "f0c971cdd7f6835e986dda90959e55a1",
+      "src\\app\\[locale]\\management\\layout.tsx": "460d8692c600dfb9a2f795b639fde011",
+      "src\\app\\[locale]\\management\\namespaces\\page.tsx": "bace202ad6b58e197ec2ce32412582d6",
+      "src\\app\\[locale]\\management\\page.tsx": "509f5ef0489f6380d8db748d6908c7e0",
+      "src\\app\\[locale]\\management\\settings\\config\\page.tsx": "e21a7ce6de9bc6b7679e156bd5b327a0",
+      "src\\app\\[locale]\\management\\settings\\theming\\page.tsx": "94dfb1841bb41f86040b2168a6fd4222",
+      "src\\app\\[locale]\\management\\users\\page.tsx": "cf8ecc6bb597147c841800a5340b27dc",
+      "src\\app\\[locale]\\management\\users\\[userId]\\page.tsx": "d03db33834b275c5a2729bb7e2651a0f",
+      "src\\app\\[locale]\\page.tsx": "fd0939f0d32dbae274575eb2ae206176"
+    },
+    "middleware": {},
+    "apiRoutes": {}
+  },
+  "results": {
+    "metrics": {
+      "totalRoutes": 24,
+      "pageRoutes": 0,
+      "apiRoutes": 3,
+      "serverComponents": 11,
+      "staticComponents": 13,
+      "dynamicRoutes": 20,
+      "middlewareCount": 0,
+      "layoutComponents": 0,
+      "serverActions": 0,
+      "performanceScore": 46.60963094553971
+    },
+    "findings": [
+      {
+        "path": "api/assistant",
+        "type": "app",
+        "file": "route.ts",
+        "isServerComponent": false,
+        "isDynamic": false,
+        "complexity": {
+          "score": 32
+        },
+        "patterns": []
+      },
+      {
+        "path": "api/auth/[...nextauth]",
+        "type": "app",
+        "file": "route.ts",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 32
+        },
+        "patterns": []
+      },
+      {
+        "path": "api/pinecone-namespaces",
+        "type": "app",
+        "file": "route.ts",
+        "isServerComponent": true,
+        "isDynamic": false,
+        "complexity": {
+          "score": 45
+        },
+        "patterns": []
+      },
+      {
+        "path": "/",
+        "type": "app",
+        "file": "layout.tsx",
+        "isServerComponent": true,
+        "isDynamic": false,
+        "complexity": {
+          "score": 16
+        },
+        "patterns": []
+      },
+      {
+        "path": "/",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": true,
+        "isDynamic": false,
+        "complexity": {
+          "score": 6
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/auth/signin",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": true,
+        "isDynamic": true,
+        "complexity": {
+          "score": 39
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/ai-engine",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": true,
+        "isDynamic": true,
+        "complexity": {
+          "score": 49
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/ai-engine/[sourceId]/source-documents",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 6
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/assistant",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 39
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/chatbots/channels",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 20
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/chatbots/channels/[channelId]",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": true,
+        "isDynamic": true,
+        "complexity": {
+          "score": 8
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/chatbots",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 30
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/digital-asset-manager/inventory",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": true,
+        "isDynamic": true,
+        "complexity": {
+          "score": 31
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/digital-asset-manager",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": true,
+        "isDynamic": true,
+        "complexity": {
+          "score": 3
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/digital-asset-manager/projects",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": true,
+        "isDynamic": true,
+        "complexity": {
+          "score": 2
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/digital-asset-manager/projects/[projectId]",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": true,
+        "isDynamic": true,
+        "complexity": {
+          "score": 29
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management",
+        "type": "app",
+        "file": "layout.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 19
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/namespaces",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 6
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 0
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/settings/config",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 10
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/settings/theming",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": true,
+        "isDynamic": true,
+        "complexity": {
+          "score": 9
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/users",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 40
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]/management/users/[userId]",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 7
+        },
+        "patterns": []
+      },
+      {
+        "path": "[locale]",
+        "type": "app",
+        "file": "page.tsx",
+        "isServerComponent": false,
+        "isDynamic": true,
+        "complexity": {
+          "score": 33
+        },
+        "patterns": []
+      },
+      {
+        "path": "api\\assistant\\route",
+        "type": "api",
+        "methods": [
+          "EXPORT ASYNC FUNCTION POST"
+        ],
+        "complexity": {
+          "score": 24
+        },
+        "hasValidation": false,
+        "hasErrorHandling": true,
+        "hasCaching": false,
+        "hasRateLimit": false,
+        "recommendations": [
+          "Add input validation to API route \"api\\assistant\\route\" to improve security"
+        ]
+      },
+      {
+        "path": "api\\auth\\[...nextauth]\\route",
+        "type": "api",
+        "methods": [],
+        "complexity": {
+          "score": 26
+        },
+        "hasValidation": false,
+        "hasErrorHandling": false,
+        "hasCaching": false,
+        "hasRateLimit": false,
+        "recommendations": [
+          "Add input validation to API route \"api\\auth\\[...nextauth]\\route\" to improve security",
+          "Add proper error handling to API route \"api\\auth\\[...nextauth]\\route\""
+        ]
+      },
+      {
+        "path": "api\\pinecone-namespaces\\route",
+        "type": "api",
+        "methods": [
+          "EXPORT ASYNC FUNCTION PUT"
+        ],
+        "complexity": {
+          "score": 39
+        },
+        "hasValidation": true,
+        "hasErrorHandling": true,
+        "hasCaching": false,
+        "hasRateLimit": false
+      }
+    ],
+    "recommendations": [
+      "Consider splitting complex route \"api/assistant\" (complexity score: 32)",
+      "Consider splitting complex route \"api/auth/[...nextauth]\" (complexity score: 32)",
+      "Consider splitting complex route \"api/pinecone-namespaces\" (complexity score: 45)",
+      "Consider splitting complex route \"[locale]/auth/signin\" (complexity score: 39)",
+      "Consider splitting complex route \"[locale]/management/ai-engine\" (complexity score: 49)",
+      "Consider splitting complex route \"[locale]/management/assistant\" (complexity score: 39)",
+      "Consider splitting complex route \"[locale]/management/chatbots\" (complexity score: 30)",
+      "Consider splitting complex route \"[locale]/management/digital-asset-manager/inventory\" (complexity score: 31)",
+      "Consider splitting complex route \"[locale]/management/digital-asset-manager/projects/[projectId]\" (complexity score: 29)",
+      "Consider splitting complex route \"[locale]/management/users\" (complexity score: 40)",
+      "Consider splitting complex route \"[locale]\" (complexity score: 33)"
+    ]
+  }
+}
