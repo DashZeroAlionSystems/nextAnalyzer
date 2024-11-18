@@ -1,0 +1,26 @@
+{
+  "name": "nextjs-analyzer",
+  "version": "1.0.0",
+  "description": "Next.js project analyzer with logging capabilities",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node test/analyze.js",
+    "analyze": "node src/index.js"
+  },
+  "keywords": [
+    "nextjs",
+    "analysis",
+    "tools"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "boxen": "^8.0.1",
+    "chalk": "^5.3.0",
+    "cli-progress": "^3.12.0",
+    "date-fns": "^4.1.0",
+    "gradient-string": "^3.0.0",
+    "ora": "^8.1.1",
+    "yargs": "^17.7.2"
+  }
+}

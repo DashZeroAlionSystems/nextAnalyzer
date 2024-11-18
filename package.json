@@ -1,0 +1,32 @@
+{
+    "name": "nextjs-analyzer",
+    "version": "1.0.0",
+    "description": "Comprehensive Next.js project analyzer with logging capabilities",
+    "main": "src/index.js",
+    "scripts": {
+        "analyze": "node src/index.js",
+        "analyze:routes": "node src/index.js routes",
+        "analyze:data": "node src/index.js data",
+        "analyze:performance": "node src/index.js performance",
+        "analyze:all": "node src/index.js all"
+    },
+    "keywords": [
+        "nextjs",
+        "analysis",
+        "performance",
+        "routes",
+        "data-flow",
+        "static-analysis"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "boxen": "^6.2.1",
+        "chalk": "^4.1.2",
+        "cli-progress": "^3.12.0",
+        "date-fns": "^2.30.0",
+        "gradient-string": "^2.0.2",
+        "ora": "^5.4.1",
+        "yargs": "^17.7.2"
+    }
+}
