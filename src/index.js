@@ -6,13 +6,15 @@ const { theme, emoji } = require('./utils/themes');
 const RoutesAnalyzer = require('./analyzers/routesAnalyzer');
 const DataAnalyzer = require('./analyzers/dataAnalyzer');
 const PerformanceAnalyzer = require('./analyzers/performanceAnalyzer');
+const SEOAnalyzer = require('./analyzers/seoAnalyzer');
 
 class NextAnalyzer {
     constructor() {
         this.analyzers = {
             routes: new RoutesAnalyzer(),
             data: new DataAnalyzer(),
-            performance: new PerformanceAnalyzer()
+            performance: new PerformanceAnalyzer(),
+            seo: new SEOAnalyzer()
         };
         this.boxen = null;
     }
@@ -166,6 +168,25 @@ if (require.main === module) {
             }
         })
         .command({
+            command: 'seo [path]',
+            desc: 'Analyze SEO metrics and best practices',
+            builder: (yargs) => {
+                return yargs.positional('path', {
+                    describe: 'Path to Next.js project',
+                    default: process.cwd()
+                })
+                .option('detailed', {
+                    alias: 'd',
+                    type: 'boolean',
+                    description: 'Show detailed SEO analysis'
+                });
+            },
+            handler: async (argv) => {
+                const analyzer = new NextAnalyzer();
+                await analyzer.analyze('seo', argv.path);
+            }
+        })
+        .command({
             command: 'performance [path]',
             desc: 'Analyze performance metrics',
             builder: (yargs) => {
@@ -192,7 +213,7 @@ if (require.main === module) {
                 const analyzer = new NextAnalyzer();
                 console.log(theme.info('\n📊 Running all analyzers...\n'));
                 
-                for (const type of ['routes', 'data', 'performance']) {
+                for (const type of ['routes', 'data', 'performance','seo']) {
                     try {
                         await analyzer.analyze(type, argv.path);
                         console.log(theme.success(`\n✅ ${type} analysis complete\n`));

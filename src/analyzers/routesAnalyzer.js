@@ -6,6 +6,37 @@ const { theme, emoji } = require('../utils/themes');
 const progress = require('../utils/progress');
 const logger = require('../utils/logger');
 
+const routePatterns = {
+    dynamicRoutes: {
+        pattern: /\[.*?\]/,
+        description: "Dynamic route segments"
+    },
+    catchAll: {
+        pattern: /\[\.\.\./,
+        description: "Catch-all routes"
+    },
+    optionalCatchAll: {
+        pattern: /\[\[\.\.\./, 
+        description: "Optional catch-all routes"
+    },
+    apiRoutes: {
+        pattern: /api\//,
+        description: "API routes"
+    },
+    groupedRoutes: {
+        pattern: /\(.+?\)/,
+        description: "Route groups"
+    },
+    parallelRoutes: {
+        pattern: /@/,
+        description: "Parallel routes"
+    },
+    interceptRoutes: {
+        pattern: /\(.+?\)@/,
+        description: "Intercepting routes"
+    }
+};
+
 class RoutesAnalyzer {
     constructor() {
         this.steps = [
@@ -15,6 +46,22 @@ class RoutesAnalyzer {
             { name: 'Middleware', emoji: '🔗' },
             { name: 'Performance', emoji: '🚀' }
         ];
+    }
+
+    detectPatterns(routePath) {
+        const patterns = [];
+        
+        for (const [key, patternInfo] of Object.entries(routePatterns)) {
+            if (patternInfo.pattern.test(routePath)) {
+                patterns.push({
+                    type: key,
+                    description: patternInfo.description,
+                    match: routePath
+                });
+            }
+        }
+        
+        return patterns;
     }
 
     async analyze(projectRoot) {
